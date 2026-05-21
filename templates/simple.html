@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modbus Server</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        input[type="number"],
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 4px;
+            font-family: Arial;
+            font-size: 1em;
+        }
+        
+        input[type="number"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1em;
+            margin-right: 10px;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #5568d3;
+        }
+        
+        .output {
+            background: #f5f5f5;
+            border: 2px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 15px;
+            min-height: 100px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            overflow-y: auto;
+            max-height: 300px;
+        }
+        
+        .message {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚙️ Modbus Server UI</h1>
+        
+        <div class="card">
+            <h2>📊 Holding Registers (Read)</h2>
+            <div id="readMsg" class="message" style="display: none;"></div>
+            
+            <div class="form-group">
+                <label>Start Address:</label>
+                <input type="number" id="readStart" value="0" min="0" max="99">
+            </div>
+            
+            <div class="form-group">
+                <label>Count:</label>
+                <input type="number" id="readCount" value="10" min="1" max="100">
+            </div>
+            
+            <button onclick="doRead()">📖 Read Registers</button>
+            
+            <div class="output" id="readOutput">Ready...</div>
+        </div>
+        
+        <div class="card">
+            <h2>📊 Holding Registers (Write)</h2>
+            <div id="writeMsg" class="message" style="display: none;"></div>
+            
+            <div class="form-group">
+                <label>Start Address:</label>
+                <input type="number" id="writeStart" value="0" min="0" max="99">
+            </div>
+            
+            <div class="form-group">
+                <label>Values (comma-separated):</label>
+                <textarea id="writeValues" rows="3">100,200,300</textarea>
+            </div>
+            
+            <button onclick="doWrite()">✍️ Write Registers</button>
+            
+            <div class="output" id="writeOutput">Ready...</div>
+        </div>
+    </div>
+    
+    <script>
+        console.log('✅ Page loaded, JavaScript is running');
+        
+        function showMsg(elemId, text, isError) {
+            const el = document.getElementById(elemId);
+            el.textContent = text;
+            el.className = 'message ' + (isError ? 'error' : 'success');
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 5000);
+        }
+        
+        function doRead() {
+            console.log('Read button clicked');
+            const start = parseInt(document.getElementById('readStart').value);
+            const count = parseInt(document.getElementById('readCount').value);
+            const output = document.getElementById('readOutput');
+            
+            output.textContent = 'Loading...';
+            
+            fetch('/api/read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ start_addr: start, count: count })
+            })
+            .then(r => {
+                console.log('Response status:', r.status);
+                return r.json();
+            })
+            .then(data => {
+                console.log('Response data:', data);
+                if (data.success) {
+                    output.textContent = 'VALUES:\n' + data.registers.map((v, i) => `[${start + i}] = ${v}`).join('\n');
+                    showMsg('readMsg', `✅ Read ${count} values`, false);
+                } else {
+                    output.textContent = 'ERROR: ' + data.error;
+                    showMsg('readMsg', data.error, true);
+                }
+            })
+            .catch(err => {
+                console.error('Fetch error:', err);
+                output.textContent = 'ERROR: ' + err.message;
+                showMsg('readMsg', err.message, true);
+            });
+        }
+        
+        function doWrite() {
+            console.log('Write button clicked');
+            const start = parseInt(document.getElementById('writeStart').value);
+            const valuesStr = document.getElementById('writeValues').value;
+            const values = valuesStr.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v));
+            const output = document.getElementById('writeOutput');
+            
+            if (values.length === 0) {
+                output.textContent = 'ERROR: No valid values';
+                showMsg('writeMsg', 'Please enter valid numbers', true);
+                return;
+            }
+            
+            output.textContent = 'Loading...';
+            
+            fetch('/api/write', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ start_addr: start, values: values })
+            })
+            .then(r => r.json())
+            .then(data => {
+                console.log('Response:', data);
+                if (data.success) {
+                    output.textContent = data.message;
+                    showMsg('writeMsg', data.message, false);
+                } else {
+                    output.textContent = 'ERROR: ' + data.error;
+                    showMsg('writeMsg', data.error, true);
+                }
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                output.textContent = 'ERROR: ' + err.message;
+                showMsg('writeMsg', err.message, true);
+            });
+        }
+    </script>
+</body>
+</html>
